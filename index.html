@@ -463,7 +463,7 @@
             roomCode: '',
             playerId: '',
             playerName: '',
-            playerAvatar: '�',
+            playerAvatar: '👑',
             isHost: false,
             currentRoom: null,
             gameData: null,
@@ -967,7 +967,7 @@
                     videoContainer.innerHTML = `
                         <i class="fas fa-user-circle text-4xl"></i>
                         <div class="absolute bottom-2 left-2 text-xs text-white bg-black bg-opacity-50 px-2 py-1 rounded-md">
-                            ${player.name}
+                            ${player.name} (Placeholder - Live video requires a backend)
                         </div>
                         <video id="remoteVideo_${playerId}" autoplay playsinline class="hidden"></video>
                     `;

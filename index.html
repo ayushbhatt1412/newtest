@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>King of Diamonds - Real Multiplayer Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .bounce-in {
+            animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        @keyframes bounceIn {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .number-input {
+            background: linear-gradient(45deg, #f3f4f6, #e5e7eb);
+            border: 2px solid #d1d5db;
+            transition: all 0.3s ease;
+        }
+        .number-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        .player-card {
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .player-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: #f59e0b;
+            animation: confetti-fall 3s linear infinite;
+            pointer-events: none; /* Allow clicks to pass through */
+            z-index: 9999; /* Ensure confetti is on top */
+        }
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+        .elimination-effect {
+            opacity: 0.3; /* Keep eliminated players faded */
+            transition: opacity 1s ease-in-out; /* Smooth transition for elimination */
+        }
+        .elimination-animation { /* Apply this once when player is eliminated */
+            animation: elimination 1s ease-in-out forwards;
+        }
+        @keyframes elimination {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+            100% { opacity: 0.3; transform: scale(0.9); }
+        }
+
+        /* Dashboard specific styles */
+        .dashboard-sidebar {
+            width: 280px; /* Fixed width for sidebar */
+            min-width: 280px;
+            max-width: 280px;
+            background: rgba(255, 255, 255, 0.1); /* Slightly transparent white */
+            backdrop-filter: blur(5px); /* Frosted glass effect */
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1rem;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto; /* Enable scrolling if many players */
+        }
+        .dashboard-player-card {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e2e8f0;
+        }
+        .dashboard-player-card.eliminated {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+        /* Global Winner Display - controlled by JS for display property */
+        .winner-display-global {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            animation: bounceIn 0.8s forwards;
+            display: none; /* Hidden by default, explicitly set to flex by JS */
+        }
+
+        /* Video Conference specific styles */
+        .video-conference-sidebar {
+            width: 320px; /* Fixed width for video sidebar */
+            min-width: 320px;
+            max-width: 320px;
+            background: rgba(0, 0, 0, 0.3); /* Darker transparent background */
+            backdrop-filter: blur(5px); /* Frosted glass effect */
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1rem;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            color: white;
+            overflow-y: auto;
+        }
+        .video-stream-container {
+            width: 100%;
+            padding-top: 75%; /* 4:3 aspect ratio (height / width * 100%) */
+            position: relative;
+            background-color: #333;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }
+        .video-stream-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensures video fills the container */
+            border-radius: 0.5rem;
+        }
+        .video-controls button {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 9999px; /* Full rounded */
+            transition: background-color 0.2s ease;
+        }
+        .video-controls button:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+        .video-controls button.active {
+            background-color: #4CAF50; /* Green for active mic/cam */
+        }
+        .video-controls button.inactive {
+            background-color: #F44336; /* Red for inactive mic/cam */
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex">
+    <!-- Left Sidebar Dashboard -->
+    <div id="leftDashboard" class="dashboard-sidebar text-white flex flex-col hidden">
+        <h3 class="text-xl font-bold mb-4 text-center text-gray-100">Participants</h3>
+        <div id="dashboardPlayersList" class="space-y-3 flex-grow">
+            <!-- Player cards will be injected here -->
+        </div>
+        <div class="mt-auto pt-4 border-t border-gray-600 text-sm text-gray-300 text-center">
+            Your ID: <span id="myPlayerIdDisplay" class="font-mono text-xs"></span>
+        </div>
+    </div>
+
+    <!-- Main App Content Container -->
+    <div id="mainContentContainer" class="flex-grow flex flex-col">
+        <!-- Main App Content (Game Area, Lobby, Menu) -->
+        <div id="app" class="container mx-auto px-4 py-8 flex-grow">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-4xl md:text-6xl font-bold text-white mb-2">
+                    <i class="fas fa-crown text-yellow-400"></i>
+                    King of Diamonds
+                </h1>
+                <p class="text-xl text-gray-200">Real-time Multiplayer Strategy Game</p>
+            </div>
+
+            <!-- Global Winner Display -->
+            <div id="globalWinnerDisplay" class="winner-display-global">
+                <h2 class="text-4xl font-bold text-yellow-600 mb-4">🏆 Game Over! 🏆</h2>
+                <div id="globalWinnerContent" class="flex items-center justify-center space-x-4">
+                    <!-- Winner avatar and name will be injected here -->
+                </div>
+                <p class="text-2xl text-gray-700 mt-2">Is the King of Diamonds!</p>
+                <button id="globalNewGameBtn" class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                    <i class="fas fa-redo mr-2"></i>New Game
+                </button>
+            </div>
+
+            <!-- Main Menu -->
+            <div id="mainMenu" class="max-w-md mx-auto">
+                <div class="bg-white rounded-xl p-8 card-shadow slide-in">
+                    <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Join the Game</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Your Username</label>
+                            <input type="text" id="usernameInput" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter your username" maxlength="15">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Choose Avatar</label>
+                            <div class="grid grid-cols-4 gap-2" id="avatarSelection">
+                                <div class="avatar-option w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-600 transition-colors" data-avatar="👑">👑</div>
+                                <div class="avatar-option w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-green-600 transition-colors" data-avatar="🎯">🎯</div>
+                                <div class="avatar-option w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-purple-600 transition-colors" data-avatar="🚀">🚀</div>
+                                <div class="avatar-option w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-red-600 transition-colors" data-avatar="⚡">⚡</div>
+                                <div class="avatar-option w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-yellow-600 transition-colors" data-avatar="🌟">🌟</div>
+                                <div class="avatar-option w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-indigo-600 transition-colors" data-avatar="🎪">🎪</div>
+                                <div class="avatar-option w-12 h-12 bg-pink-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-pink-600 transition-colors" data-avatar="🎭">🎭</div>
+                                <div class="avatar-option w-12 h-12 bg-gray-500 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-gray-600 transition-colors" data-avatar="🎨">🎨</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-4">
+                            <button id="createRoomBtn" class="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                                <i class="fas fa-plus mr-2"></i>Create Room
+                            </button>
+                            <button id="joinRoomBtn" class="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold">
+                                <i class="fas fa-sign-in-alt mr-2"></i>Join Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Join Room Modal -->
+            <div id="joinRoomModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4 bounce-in">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">Enter Room Code</h3>
+                    <input type="text" id="roomCodeInput" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent mb-4" placeholder="Enter 6-digit room code" maxlength="6">
+                    <div class="flex space-x-4">
+                        <button id="joinRoomConfirm" class="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors">Join</button>
+                        <button id="joinRoomCancel" class="flex-1 bg-gray-400 text-white py-2 rounded-lg hover:bg-gray-500 transition-colors">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Rules Modal -->
+            <div id="gameRulesModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 bounce-in">
+                    <h3 class="text-2xl font-bold mb-4 text-gray-800 text-center">How to Play King of Diamonds</h3>
+                    <div class="prose max-w-none text-gray-700 mb-6">
+                        <p>Welcome to King of Diamonds! This is a real-time multiplayer strategy game where players try to guess a number closest to 80% of the average of all submitted numbers.</p>
+                        <ul class="list-disc list-inside space-y-2">
+                            <li><strong>Objective:</strong> Be the last player standing.</li>
+                            <li><strong>Rounds:</strong> Each round has a time limit (default 180 seconds).</li>
+                            <li><strong>Submission:</strong> During a round, each player chooses a number between 0 and 100 using the slider and clicks "Submit". You can only submit once per round.</li>
+                            <li><strong>Calculating Results:</strong>
+                                <ul class="list-circle list-inside ml-4">
+                                    <li>The game calculates the average of all submitted numbers from *active* players.</li>
+                                    <li>The "target" number is 80% of this average.</li>
+                                    <li>The player whose submitted number is closest to the target number wins the round.</li>
+                                </ul>
+                            </li>
+                            <li><strong>Scoring:</strong>
+                                <ul class="list-circle list-inside ml-4">
+                                    <li>The round winner gains 1 point.</li>
+                                    <li>All other active players lose 1 point.</li>
+                                </ul>
+                            </li>
+                            <li><strong>Elimination:</strong> If a player's score drops to or below the "Elimination Threshold" (default -5), they are eliminated from the game. Eliminated players cannot participate in subsequent rounds.</li>
+                            <li><strong>Winning the Game:</strong> The game ends when only one player remains. That player is crowned the "King of Diamonds"!</li>
+                        </ul>
+                        <p class="mt-4 text-center font-semibold">Good luck, and may the smartest player win!</p>
+                    </div>
+                    <div class="flex justify-center">
+                        <button id="rulesGotItBtn" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                            Got It! <i class="fas fa-check ml-2"></i>
+                        </button>
+                        <button id="rulesStartGameBtn" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold ml-4 hidden">
+                            <i class="fas fa-play mr-2"></i>Start Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Alert Modal -->
+            <div id="customAlertModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 bounce-in text-center">
+                    <h3 id="customAlertTitle" class="text-xl font-bold mb-4 text-gray-800">Alert</h3>
+                    <p id="customAlertMessage" class="text-gray-700 mb-6"></p>
+                    <button id="customAlertCloseBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
+                </div>
+            </div>
+
+            <!-- Lobby -->
+            <div id="lobby" class="hidden flex-grow">
+                <div class="max-w-4xl mx-auto">
+                    <div class="bg-white rounded-xl p-6 card-shadow mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Game Lobby</h2>
+                            <div class="flex items-center space-x-4">
+                                <div class="text-sm text-gray-600">
+                                    Room Code: <span id="displayRoomCode" class="font-bold text-lg text-blue-600"></span>
+                                </div>
+                                <button id="copyRoomCode" class="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg hover:bg-blue-200 transition-colors">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-3 text-gray-700">Players (<span id="playerCount">0</span>/5)</h3>
+                                <div id="lobbyPlayersList" class="space-y-2"></div>
+                            </div>
+                            
+                            <div id="adminControls" class="hidden">
+                                <h3 class="text-lg font-semibold mb-3 text-gray-700">Admin Controls</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Elimination Threshold</label>
+                                        <input type="number" id="eliminationThreshold" class="w-full p-2 border border-gray-300 rounded-lg" value="-5" min="-10" max="0">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Round Duration (seconds)</label>
+                                        <input type="number" id="roundDuration" class="w-full p-2 border border-gray-300 rounded-lg" value="180" min="30" max="600">
+                                    </div>
+                                    <button id="startGameBtn" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold">
+                                        <i class="fas fa-play mr-2"></i>Start Game
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game -->
+            <div id="gameArea" class="hidden flex-grow">
+                <div class="max-w-6xl mx-auto">
+                    <!-- Game Header -->
+                    <div class="bg-white rounded-xl p-4 card-shadow mb-6">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-4">
+                                <div class="text-2xl font-bold text-gray-800">Round <span id="currentRound">1</span></div>
+                                <div id="gameTimer" class="text-xl font-semibold text-blue-600"></div>
+                            </div>
+                            <div id="gameStatus" class="text-lg font-semibold text-green-600">Waiting for players...</div>
+                        </div>
+                    </div>
+
+                    <!-- Number Input -->
+                    <div id="numberInputSection" class="bg-white rounded-xl p-6 card-shadow mb-6">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800 text-center">Choose Your Number (0-100)</h3>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="numberSlider" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" min="0" max="100" value="50">
+                            <div id="numberDisplay" class="text-3xl font-bold text-blue-600 w-16 text-center">50</div>
+                            <button id="submitNumberBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">Submit</button>
+                        </div>
+                    </div>
+
+                    <!-- Players Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <div id="playersGrid"></div>
+                    </div>
+
+                    <!-- Results -->
+                    <div id="resultsSection" class="bg-white rounded-xl p-6 card-shadow hidden">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800 text-center">Round Results</h3>
+                        <div id="resultsContent"></div>
+                    </div>
+
+                    <!-- Winner -->
+                    <div id="winnerSection" class="bg-white rounded-xl p-6 card-shadow hidden">
+                        <div class="text-center">
+                            <h2 class="text-4xl font-bold text-yellow-600 mb-4">🏆 Game Over! 🏆</h2>
+                            <div id="winnerContent"></div>
+                            <button id="newGameBtn" class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                                <i class="fas fa-redo mr-2"></i>New Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="fixed top-4 right-4">
+                <button id="settingsBtn" class="bg-white bg-opacity-20 text-white p-3 rounded-full hover:bg-opacity-30 transition-all">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar Video Conference -->
+    <div id="videoConferenceArea" class="video-conference-sidebar hidden">
+        <h3 class="text-xl font-bold mb-4 text-center text-gray-100">Video Chat</h3>
+        
+        <!-- Local Video Stream -->
+        <div class="video-stream-container">
+            <video id="localVideo" autoplay muted playsinline class="rounded-lg"></video>
+            <div class="absolute bottom-2 left-2 text-xs text-white bg-black bg-opacity-50 px-2 py-1 rounded-md">You</div>
+        </div>
+
+        <!-- Video Controls -->
+        <div class="video-controls flex space-x-2 mb-4">
+            <button id="toggleMicBtn" class="active">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="toggleCamBtn" class="active">
+                <i class="fas fa-video"></i>
+            </button>
+            <button id="startVideoBtn" class="bg-blue-500 hover:bg-blue-600">
+                <i class="fas fa-play"></i> Start Video
+            </button>
+        </div>
+
+        <h4 class="text-lg font-semibold mb-2 text-gray-200">Participants</h4>
+        <div id="remoteVideos" class="w-full space-y-3 flex-grow">
+            <!-- Remote video streams will be injected here -->
+            <div class="video-stream-container bg-gray-700 flex items-center justify-center text-gray-400 text-sm">
+                <i class="fas fa-user-circle text-4xl"></i>
+                <div class="absolute bottom-2 left-2 text-xs text-white bg-black bg-opacity-50 px-2 py-1 rounded-md">Remote 1 (Placeholder)</div>
+            </div>
+            <div class="video-stream-container bg-gray-700 flex items-center justify-center text-gray-400 text-sm">
+                <i class="fas fa-user-circle text-4xl"></i>
+                <div class="absolute bottom-2 left-2 text-xs text-white bg-black bg-opacity-50 px-2 py-1 rounded-md">Remote 2 (Placeholder)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration (REPLACE WITH YOUR OWN)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCrkfpTz_dzIrDJ9wEn4Tci7_vcKxsOYk8",
+            authDomain: "kinggame-98d15.firebaseapp.com",
+            databaseURL: "https://kinggame-98d15-default-rtdb.firebaseio.com",
+            projectId: "kinggame-98d15",
+            storageBucket: "kinggame-98d15.firebasestorage.app",
+            messagingSenderId: "773740245141",
+            appId: "1:773740245141:web:68806616f13bf60c36ab9c"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Game State
+        let gameState = {
+            roomCode: '',
+            playerId: '',
+            playerName: '',
+            playerAvatar: '👑',
+            isHost: false,
+            currentRoom: null,
+            gameData: null,
+            isInGame: false,
+            localStream: null, // To store local media stream
+            isMicOn: true,
+            isCamOn: true
+        };
+
+        // Tone.js Sound Effects Setup
+        let synthClick, synthSubmit, synthRoundStart, synthRoundEnd, synthEliminate, synthGameOver;
+
+        // Function to initialize Tone.js synths
+        function initAudio() {
+            try {
+                // Basic synth for clicks
+                synthClick = new Tone.Synth().toDestination();
+                synthClick.volume.value = -10; // Lower volume
+
+                // Plucky sound for submission
+                synthSubmit = new Tone.PluckSynth().toDestination();
+                synthSubmit.volume.value = -8;
+
+                // Warm pad for round start
+                synthRoundStart = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.5, decay: 0.1, sustain: 0.2, release: 0.5 },
+                    volume: -12
+                }).toDestination();
+
+                // FM synth for round end/results
+                synthRoundEnd = new Tone.FMSynth({
+                    harmonicity: 3.0,
+                    modulationIndex: 10,
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.5 },
+                    modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.5 },
+                    volume: -10
+                }).toDestination();
+
+                // Noise for elimination
+                synthEliminate = new Tone.NoiseSynth({
+                    noise: { type: "pink" },
+                    envelope: { attack: 0.005, decay: 0.1, sustain: 0.0, release: 0.1 },
+                    volume: -10
+                }).toDestination();
+
+                // Membrane synth for game over
+                synthGameOver = new Tone.MembraneSynth().toDestination();
+                synthGameOver.volume.value = -5;
+
+                console.log("Tone.js audio context initialized.");
+            } catch (e) {
+                console.warn("Audio context not initialized:", e);
+                // Fallback or disable sound if audio context fails
+                playSound = () => {}; // Mute all sounds
+            }
+        }
+
+        // Helper function to play sounds
+        function playSound(type) {
+            if (!Tone.context || Tone.context.state !== 'running') {
+                // Attempt to resume audio context on first user interaction
+                Tone.start().then(() => {
+                    console.log("Audio context resumed.");
+                    _actuallyPlaySound(type);
+                }).catch(e => console.error("Failed to resume audio context:", e));
+            } else {
+                _actuallyPlaySound(type);
+            }
+        }
+
+        function _actuallyPlaySound(type) {
+            switch (type) {
+                case 'click':
+                    synthClick.triggerAttackRelease("C4", "8n");
+                    break;
+                case 'submit':
+                    synthSubmit.triggerAttackRelease("G4", "8n");
+                    break;
+                case 'roundStart':
+                    synthRoundStart.triggerAttackRelease(["C4", "E4", "G4"], "1n");
+                    break;
+                case 'roundEnd':
+                    synthRoundEnd.triggerAttackRelease("C3", "4n");
+                    break;
+                case 'eliminate':
+                    synthEliminate.triggerAttackRelease("8n");
+                    break;
+                case 'gameOver':
+                    synthGameOver.triggerAttackRelease("C2", "2n");
+                    break;
+                default:
+                    break;
+            }
+        }
+
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', function() {
+            initAudio(); // Initialize audio context on DOM load
+            initializeApp();
+        });
+
+        function initializeApp() {
+            setupEventListeners();
+            generatePlayerId();
+            showMainMenu();
+            document.getElementById('myPlayerIdDisplay').textContent = gameState.playerId; // Display player ID
+        }
+
+        function generatePlayerId() {
+            gameState.playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function setupEventListeners() {
+            // Avatar selection
+            document.querySelectorAll('.avatar-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    playSound('click');
+                    document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('ring-4', 'ring-blue-400'));
+                    this.classList.add('ring-4', 'ring-blue-400');
+                    gameState.playerAvatar = this.dataset.avatar;
+                });
+            });
+
+            // Main menu buttons
+            document.getElementById('createRoomBtn').addEventListener('click', function() { playSound('click'); createRoom(); });
+            document.getElementById('joinRoomBtn').addEventListener('click', function() { playSound('click'); showJoinRoomModal(); });
+            document.getElementById('joinRoomConfirm').addEventListener('click', function() { playSound('click'); joinRoom(); });
+            document.getElementById('joinRoomCancel').addEventListener('click', function() { playSound('click'); hideJoinRoomModal(); });
+
+            // Game rules modal buttons
+            document.getElementById('rulesGotItBtn').addEventListener('click', function() { playSound('click'); hideGameRulesModal(); });
+            document.getElementById('rulesStartGameBtn').addEventListener('click', function() { playSound('click'); startGame(); hideGameRulesModal(); });
+
+            // Game controls
+            document.getElementById('startGameBtn').addEventListener('click', function() { playSound('click'); startGame(); });
+            document.getElementById('submitNumberBtn').addEventListener('click', function() { playSound('submit'); submitNumber(); });
+            document.getElementById('newGameBtn').addEventListener('click', function() { playSound('click'); returnToLobby(); });
+            document.getElementById('globalNewGameBtn').addEventListener('click', function() { playSound('click'); returnToLobby(); });
+
+
+            // Room code copy
+            document.getElementById('copyRoomCode').addEventListener('click', function() { playSound('click'); copyRoomCode(); });
+
+            // Number slider
+            document.getElementById('numberSlider').addEventListener('input', function() {
+                document.getElementById('numberDisplay').textContent = this.value;
+            });
+
+            // Settings
+            document.getElementById('settingsBtn').addEventListener('click', function() { playSound('click'); toggleSettings(); });
+
+            // Custom Alert Close Button
+            document.getElementById('customAlertCloseBtn').addEventListener('click', function() { playSound('click'); hideCustomAlert(); });
+
+            // Video Conferencing Controls
+            document.getElementById('startVideoBtn').addEventListener('click', function() { playSound('click'); startLocalVideo(); });
+            document.getElementById('toggleMicBtn').addEventListener('click', function() { playSound('click'); toggleMic(); });
+            document.getElementById('toggleCamBtn').addEventListener('click', function() { playSound('click'); toggleCam(); });
+        }
+
+        // Custom Alert Functions
+        function showAlert(message, title = 'Alert') {
+            document.getElementById('customAlertTitle').textContent = title;
+            document.getElementById('customAlertMessage').textContent = message;
+            document.getElementById('customAlertModal').classList.remove('hidden');
+        }
+
+        function hideCustomAlert() {
+            document.getElementById('customAlertModal').classList.add('hidden');
+        }
+
+
+        function showMainMenu() {
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('gameArea').classList.add('hidden');
+            document.getElementById('gameRulesModal').classList.add('hidden'); // Ensure rules are hidden
+            document.getElementById('leftDashboard').classList.add('hidden'); // Hide dashboard
+            document.getElementById('globalWinnerDisplay').style.display = 'none'; // Explicitly hide global winner display
+            document.getElementById('videoConferenceArea').classList.add('hidden'); // Hide video conference area
+            stopLocalVideo(); // Stop local video when returning to main menu
+        }
+
+        function showJoinRoomModal() {
+            if (!validateInput()) return;
+            document.getElementById('joinRoomModal').classList.remove('hidden');
+        }
+
+        function hideJoinRoomModal() {
+            document.getElementById('joinRoomModal').classList.add('hidden');
+            document.getElementById('roomCodeInput').value = '';
+        }
+
+        function validateInput() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (!username) {
+                showAlert('Please enter a username');
+                return false;
+            }
+            gameState.playerName = username;
+            return true;
+        }
+
+        function createRoom() {
+            if (!validateInput()) return;
+            
+            const roomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+            gameState.roomCode = roomCode;
+            gameState.isHost = true;
+
+            const roomData = {
+                code: roomCode,
+                host: gameState.playerId,
+                players: {
+                    [gameState.playerId]: {
+                        name: gameState.playerName,
+                        avatar: gameState.playerAvatar,
+                        score: 0,
+                        eliminated: false,
+                        isHost: true
+                    }
+                },
+                settings: {
+                    eliminationThreshold: -5,
+                    roundDuration: 180,
+                    maxPlayers: 5
+                },
+                gameStatus: 'lobby',
+                currentRound: 0,
+                roundStartTime: null,
+                submissions: {},
+                results: {}
+            };
+
+            database.ref('rooms/' + roomCode).set(roomData)
+                .then(() => {
+                    joinRoomSuccess(roomCode);
+                })
+                .catch(error => {
+                    console.error('Error creating room:', error);
+                    showAlert('Failed to create room. Please try again.', 'Error');
+                });
+        }
+
+        function joinRoom() {
+            if (!validateInput()) return;
+            
+            const roomCode = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+            if (!roomCode || roomCode.length !== 6) {
+                showAlert('Please enter a valid 6-digit room code');
+                return;
+            }
+
+            database.ref('rooms/' + roomCode).once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        const roomData = snapshot.val();
+                        if (Object.keys(roomData.players).length >= roomData.settings.maxPlayers) {
+                            showAlert('Room is full');
+                            return;
+                        }
+                        if (roomData.gameStatus !== 'lobby') {
+                            showAlert('Game is already in progress in this room. Please try another room.', 'Game In Progress');
+                            return;
+                        }
+                        
+                        // Add player to room
+                        database.ref('rooms/' + roomCode + '/players/' + gameState.playerId).set({
+                            name: gameState.playerName,
+                            avatar: gameState.playerAvatar,
+                            score: 0,
+                            eliminated: false,
+                            isHost: false
+                        })
+                        .then(() => {
+                            gameState.roomCode = roomCode;
+                            gameState.isHost = false;
+                            joinRoomSuccess(roomCode);
+                        });
+                    } else {
+                        showAlert('Room not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error joining room:', error);
+                    showAlert('Failed to join room. Please try again.', 'Error');
+                });
+        }
+
+        function joinRoomSuccess(roomCode) {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('joinRoomModal').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+            document.getElementById('displayRoomCode').textContent = roomCode;
+            document.getElementById('leftDashboard').classList.remove('hidden'); // Show dashboard
+            document.getElementById('videoConferenceArea').classList.remove('hidden'); // Show video conference area
+
+            if (gameState.isHost) {
+                document.getElementById('adminControls').classList.remove('hidden');
+                document.getElementById('rulesStartGameBtn').classList.remove('hidden'); // Show start game button in rules for host
+            } else {
+                document.getElementById('rulesStartGameBtn').classList.add('hidden'); // Hide for non-host
+            }
+
+            // Show game rules when entering lobby
+            showGameRules();
+
+            // Listen for room changes
+            gameState.currentRoom = database.ref('rooms/' + roomCode);
+            gameState.currentRoom.on('value', handleRoomUpdate);
+        }
+
+        function showGameRules() {
+            document.getElementById('gameRulesModal').classList.remove('hidden');
+        }
+
+        function hideGameRulesModal() {
+            document.getElementById('gameRulesModal').classList.add('hidden');
+        }
+
+        let timerInterval; // Declare timerInterval globally or in a scope accessible by updateGameInterface and processRoundResults
+
+        function handleRoomUpdate(snapshot) {
+            if (!snapshot.exists()) {
+                showAlert('Room has been closed by the host.', 'Room Closed');
+                returnToMainMenu();
+                return;
+            }
+
+            const roomData = snapshot.val();
+            const oldGameData = gameState.gameData; // Store old game data to compare for changes
+            gameState.gameData = roomData;
+
+            // Update players list in lobby and dashboard
+            updatePlayersList(roomData.players);
+            updateDashboardPlayersList(roomData.players);
+            
+            // Handle game state changes
+            if (roomData.gameStatus === 'playing' && !gameState.isInGame) {
+                startGameInterface();
+                playSound('roundStart'); // Play sound when game starts
+            } else if (roomData.gameStatus === 'lobby' && gameState.isInGame) {
+                returnToLobby();
+            } else if (roomData.gameStatus === 'game_over') { // Check for game_over status for all players
+                clearInterval(timerInterval); // Stop game timer
+                gameState.isInGame = false; // Set isInGame to false once game is over
+
+                const alivePlayers = Object.values(roomData.players).filter(p => !p.eliminated);
+                let winnerPlayer = null;
+                if (alivePlayers.length === 1) {
+                    winnerPlayer = alivePlayers[0];
+                } else if (alivePlayers.length === 0) {
+                    winnerPlayer = { name: "No one", avatar: "💀" }; // All eliminated scenario
+                } else {
+                    // This case handles when game is over but no clear winner (e.g., host manually ended)
+                    // Or if multiple players are alive but host ended the game
+                    winnerPlayer = { name: "Game Ended", avatar: "❓" };
+                }
+                
+                showWinner(winnerPlayer); // Call the dedicated winner display function
+                return; // Stop further processing
+            }
+
+            // Update game interface if in game
+            if (roomData.gameStatus === 'playing' || roomData.gameStatus === 'results') {
+                updateGameInterface(roomData);
+            }
+
+            // Automatic results display check (only for host)
+            if (roomData.gameStatus === 'playing' && gameState.isHost) {
+                const activePlayers = Object.values(roomData.players).filter(p => !p.eliminated);
+                const submittedPlayers = Object.keys(roomData.submissions || {});
+                const activeSubmittedPlayers = submittedPlayers.filter(id => !roomData.players[id].eliminated);
+
+                // Declare winner immediately if only one player is left and game is still playing
+                if (activePlayers.length === 1) { 
+                    database.ref('rooms/' + gameState.roomCode).update({ gameStatus: 'game_over' });
+                    return; // Exit early, winner will be shown by game_over status
+                }
+                
+                if (activeSubmittedPlayers.length > 0 && activeSubmittedPlayers.length === activePlayers.length) {
+                    // All active players have submitted, process results immediately
+                    processRoundResults();
+                }
+            }
+
+            // Check for player elimination animation and sound
+            if (oldGameData && oldGameData.players) {
+                Object.entries(roomData.players).forEach(([playerId, player]) => {
+                    if (player.eliminated && !oldGameData.players[playerId].eliminated) {
+                        // Player just got eliminated, apply animation and sound
+                        const playerGridElement = document.querySelector(`#playersGrid div[data-player-id="${playerId}"]`);
+                        if (playerGridElement) {
+                            playerGridElement.classList.add('elimination-animation');
+                            playSound('eliminate');
+                        }
+                        const dashboardPlayerCard = document.querySelector(`#dashboardPlayersList div[data-player-id="${playerId}"]`);
+                        if (dashboardPlayerCard) {
+                            dashboardPlayerCard.classList.add('elimination-animation');
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateGlobalWinnerDisplay(winnerPlayer) {
+            const globalWinnerContent = document.getElementById('globalWinnerContent');
+            globalWinnerContent.innerHTML = `
+                <div class="w-24 h-24 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center text-5xl text-white">
+                    ${winnerPlayer.avatar}
+                </div>
+                <span class="text-5xl font-extrabold text-gray-800">${winnerPlayer.name}</span>
+            `;
+            createConfetti();
+        }
+
+
+        function updatePlayersList(players) {
+            const playersList = document.getElementById('lobbyPlayersList'); // Changed to lobbyPlayersList
+            const playerCount = document.getElementById('playerCount');
+            
+            const fragment = document.createDocumentFragment(); // Use DocumentFragment for performance
+            playerCount.textContent = Object.keys(players).length;
+            
+            Object.entries(players).forEach(([playerId, player]) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player-card rounded-lg p-3 flex items-center justify-between ${player.eliminated ? 'elimination-effect' : ''}`;
+                playerDiv.dataset.playerId = playerId; // Add data attribute for easy selection
+                
+                playerDiv.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white">
+                            ${player.avatar}
+                        </div>
+                        <div>
+                            <div class="font-semibold text-gray-800">${player.name}</div>
+                            <div class="text-sm text-gray-600">Score: ${player.score}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        ${player.isHost ? '<i class="fas fa-crown text-yellow-500"></i>' : ''}
+                        ${player.eliminated ? '<span class="text-red-500 text-sm">Eliminated</span>' : ''}
+                        ${gameState.isHost && playerId !== gameState.playerId ? `<button class="remove-player-btn ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600" data-player-id="${playerId}">Remove</button>` : ''}
+                    </div>
+                `;
+                
+                fragment.appendChild(playerDiv);
+            });
+            playersList.innerHTML = ''; // Clear once
+            playersList.appendChild(fragment); // Append all at once
+
+            // Add event listeners for new remove buttons
+            playersList.querySelectorAll('.remove-player-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const playerIdToRemove = event.target.dataset.playerId;
+                    removePlayer(playerIdToRemove);
+                });
+            });
+        }
+
+        function updateDashboardPlayersList(players) {
+            const dashboardPlayersList = document.getElementById('dashboardPlayersList');
+            const fragment = document.createDocumentFragment();
+
+            Object.entries(players).forEach(([playerId, player]) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `dashboard-player-card rounded-lg p-2 flex items-center space-x-2 ${player.eliminated ? 'eliminated' : ''}`;
+                playerDiv.dataset.playerId = playerId; // Add data attribute for selection
+
+                playerDiv.innerHTML = `
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm">
+                        ${player.avatar}
+                    </div>
+                    <div class="flex-grow">
+                        <div class="font-semibold text-gray-800 text-sm">${player.name} ${playerId === gameState.playerId ? '(You)' : ''}</div>
+                        <div class="text-xs text-gray-600">Score: ${player.score}</div>
+                    </div>
+                    ${player.isHost ? '<i class="fas fa-crown text-yellow-500 text-sm"></i>' : ''}
+                    ${player.eliminated ? '<span class="text-red-500 text-xs">ELIM</span>' : ''}
+                `;
+                fragment.appendChild(playerDiv);
+            });
+            dashboardPlayersList.innerHTML = '';
+            dashboardPlayersList.appendChild(fragment);
+        }
+
+        function removePlayer(playerIdToRemove) {
+            if (!gameState.isHost) {
+                showAlert('Only the host can remove players.', 'Permission Denied');
+                return;
+            }
+            if (playerIdToRemove === gameState.playerId) {
+                showAlert('You cannot remove yourself.', 'Cannot Remove');
+                return;
+            }
+
+            // Confirm removal (optional, but good practice)
+            if (confirm(`Are you sure you want to remove ${gameState.gameData.players[playerIdToRemove].name}?`)) {
+                database.ref('rooms/' + gameState.roomCode + '/players/' + playerIdToRemove).remove()
+                    .then(() => {
+                        console.log(`Player ${playerIdToRemove} removed.`);
+                        // Also remove their submission if they had one for the current round
+                        database.ref('rooms/' + gameState.roomCode + '/submissions/' + playerIdToRemove).remove();
+                    })
+                    .catch(error => {
+                        console.error('Error removing player:', error);
+                        showAlert('Failed to remove player. Please try again.', 'Error');
+                    });
+            }
+        }
+
+        function startGame() {
+            if (!gameState.isHost) return;
+            
+            const eliminationThreshold = parseInt(document.getElementById('eliminationThreshold').value);
+            const roundDuration = parseInt(document.getElementById('roundDuration').value);
+            
+            database.ref('rooms/' + gameState.roomCode).update({
+                gameStatus: 'playing',
+                currentRound: 1,
+                roundStartTime: Date.now(),
+                'settings/eliminationThreshold': eliminationThreshold,
+                'settings/roundDuration': roundDuration,
+                submissions: {},
+                results: {}
+            });
+            playSound('roundStart');
+        }
+
+        function startGameInterface() {
+            gameState.isInGame = true;
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('gameArea').classList.remove('hidden');
+            document.getElementById('globalWinnerDisplay').style.display = 'none'; // Hide global winner display
+            // Ensure eliminated players cannot submit numbers
+            if (gameState.gameData.players[gameState.playerId] && gameState.gameData.players[gameState.playerId].eliminated) {
+                document.getElementById('numberInputSection').classList.add('hidden');
+            } else {
+                document.getElementById('numberInputSection').classList.remove('hidden');
+                document.getElementById('submitNumberBtn').disabled = false;
+                document.getElementById('submitNumberBtn').textContent = 'Submit';
+                document.getElementById('submitNumberBtn').classList.remove('bg-green-600');
+                document.getElementById('numberSlider').value = 50; // Reset slider
+                document.getElementById('numberDisplay').textContent = 50;
+            }
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('winnerSection').classList.add('hidden');
+        }
+
+        function updateGameInterface(roomData) {
+            document.getElementById('currentRound').textContent = roomData.currentRound;
+            
+            clearInterval(timerInterval); // Clear any existing timer
+            if (roomData.roundStartTime && roomData.gameStatus === 'playing') {
+                timerInterval = setInterval(() => {
+                    const elapsed = Date.now() - roomData.roundStartTime;
+                    const remaining = Math.max(0, roomData.settings.roundDuration * 1000 - elapsed);
+                    const minutes = Math.floor(remaining / 60000);
+                    const seconds = Math.floor((remaining % 60000) / 1000);
+                    document.getElementById('gameTimer').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    if (remaining <= 0) {
+                        clearInterval(timerInterval);
+                        if (gameState.isHost) {
+                            processRoundResults();
+                        }
+                    }
+                }, 1000);
+            } else {
+                document.getElementById('gameTimer').textContent = `0:00`;
+            }
+            
+            updatePlayersGrid(roomData.players);
+            
+            const alivePlayers = Object.values(roomData.players).filter(p => !p.eliminated);
+            // Declare winner immediately if only one player is left and game is still playing
+            if (roomData.gameStatus === 'playing' && alivePlayers.length === 1) {
+                if (gameState.isHost) {
+                    database.ref('rooms/' + gameState.roomCode).update({ gameStatus: 'game_over' });
+                }
+                // showWinner(alivePlayers[0]); // This will be triggered by game_over status change in handleRoomUpdate
+            } else if (roomData.gameStatus === 'playing' && alivePlayers.length === 0) {
+                // All players eliminated, handle draw or specific game over scenario
+                if (gameState.isHost) {
+                    database.ref('rooms/' + gameState.roomCode).update({ gameStatus: 'game_over' });
+                }
+                // showWinner({ name: "No one", avatar: "💀" }); // This will be triggered by game_over status change in handleRoomUpdate
+            }
+            
+            if (roomData.results && roomData.results.average !== undefined) {
+                showRoundResults(roomData.results, roomData.players);
+            } else {
+                // Hide results section if no results are present (e.g., at the start of a round)
+                document.getElementById('resultsSection').classList.add('hidden');
+                // Only show number input if player is not eliminated
+                if (gameState.gameData.players[gameState.playerId] && !gameState.gameData.players[gameState.playerId].eliminated) {
+                    document.getElementById('numberInputSection').classList.remove('hidden');
+                    // Re-enable submit button if it was disabled from previous round submission
+                    if (!roomData.submissions || !roomData.submissions[gameState.playerId]) {
+                        document.getElementById('submitNumberBtn').disabled = false;
+                        document.getElementById('submitNumberBtn').textContent = 'Submit';
+                        document.getElementById('submitNumberBtn').classList.remove('bg-green-600');
+                    }
+                } else {
+                    document.getElementById('numberInputSection').classList.add('hidden'); // Hide for eliminated players
+                }
+            }
+            
+            // Update game status display
+            const gameStatusElement = document.getElementById('gameStatus');
+            if (roomData.gameStatus === 'lobby') {
+                gameStatusElement.textContent = 'Waiting for players...';
+                gameStatusElement.className = 'text-lg font-semibold text-green-600';
+            } else if (roomData.gameStatus === 'playing') {
+                gameStatusElement.textContent = 'Round in progress!';
+                gameStatusElement.className = 'text-lg font-semibold text-blue-600 pulse-animation';
+            } else if (roomData.gameStatus === 'results') { // New status for showing results
+                gameStatusElement.textContent = 'Results are in!';
+                gameStatusElement.className = 'text-lg font-semibold text-purple-600';
+            } else if (roomData.gameStatus === 'game_over') {
+                gameStatusElement.textContent = 'Game Over!';
+                gameStatusElement.className = 'text-lg font-semibold text-red-600';
+            }
+        }
+
+        function updatePlayersGrid(players) {
+            const playersGrid = document.getElementById('playersGrid');
+            const fragment = document.createDocumentFragment(); // Use DocumentFragment for performance
+            
+            Object.entries(players).forEach(([playerId, player]) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player-card rounded-lg p-4 ${player.eliminated ? 'elimination-effect' : ''}`;
+                playerDiv.dataset.playerId = playerId; // Add data attribute for easy selection
+                
+                const hasSubmitted = gameState.gameData.submissions && gameState.gameData.submissions[playerId];
+                
+                playerDiv.innerHTML = `
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white">
+                            ${player.avatar}
+                        </div>
+                        <div>
+                            <div class="font-semibold text-gray-800">${player.name}</div>
+                            <div class="text-sm text-gray-600">Score: ${player.score}</div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        ${player.eliminated ? 
+                            '<span class="text-red-500 font-semibold">Eliminated</span>' :
+                            hasSubmitted ? 
+                                '<span class="text-green-500 font-semibold">✓ Submitted</span>' :
+                                '<span class="text-gray-400">Waiting...</span>'
+                        }
+                    </div>
+                `;
+                
+                fragment.appendChild(playerDiv);
+            });
+            playersGrid.innerHTML = ''; // Clear once
+            playersGrid.appendChild(fragment); // Append all at once
+        }
+
+        function submitNumber() {
+            if (!gameState.isInGame) return;
+            // Prevent submission if already submitted or player is eliminated
+            if (gameState.gameData.players[gameState.playerId] && gameState.gameData.players[gameState.playerId].eliminated) {
+                showAlert("You are eliminated and cannot submit numbers.", "Eliminated");
+                return;
+            }
+            if (gameState.gameData.submissions && gameState.gameData.submissions[gameState.playerId]) {
+                showAlert("You've already submitted your number for this round.", "Already Submitted");
+                return;
+            }
+            
+            const number = parseInt(document.getElementById('numberSlider').value);
+            
+            database.ref('rooms/' + gameState.roomCode + '/submissions/' + gameState.playerId).set({
+                number: number,
+                timestamp: Date.now()
+            });
+            
+            document.getElementById('submitNumberBtn').disabled = true;
+            document.getElementById('submitNumberBtn').textContent = 'Submitted!';
+            document.getElementById('submitNumberBtn').classList.add('bg-green-600');
+            playSound('submit');
+        }
+
+        function processRoundResults() {
+            if (!gameState.isHost) return;
+            
+            const submissions = gameState.gameData.submissions || {};
+            let players = gameState.gameData.players;
+            
+            // Filter out eliminated players from submissions for calculation
+            const activeSubmissions = Object.entries(submissions)
+                                        .filter(([id, sub]) => !players[id].eliminated)
+                                        .map(([id, sub]) => sub.number);
+
+            if (activeSubmissions.length === 0) {
+                // If no active players submitted, no score changes, just advance round
+                // Check if only one player is left after this round (no submissions)
+                const remainingPlayersAfterNoSubmissions = Object.values(players).filter(p => !p.eliminated);
+                if (remainingPlayersAfterNoSubmissions.length <= 1) {
+                    database.ref('rooms/' + gameState.roomCode).update({ gameStatus: 'game_over' });
+                    return;
+                }
+
+                database.ref('rooms/' + gameState.roomCode).update({
+                    gameStatus: 'results', // Set to results to show 'No submissions' or similar
+                    currentRound: gameState.gameData.currentRound + 1,
+                    roundStartTime: null, // Clear start time for results display
+                    submissions: {},
+                    results: { message: "No active players submitted numbers this round." } // Indicate no submissions
+                });
+                playSound('roundEnd');
+                return;
+            }
+
+            // Calculate average
+            const average = activeSubmissions.reduce((a, b) => a + b, 0) / activeSubmissions.length;
+            const target = average * 0.8;
+            
+            // Find closest player among active players
+            let closestPlayer = null;
+            let minDistance = Infinity;
+            
+            Object.entries(submissions).forEach(([playerId, submission]) => {
+                if (!players[playerId].eliminated) { // Only consider active players
+                    const distance = Math.abs(submission.number - target);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestPlayer = playerId;
+                    }
+                }
+            });
+            
+            // Update scores
+            const updates = {};
+            Object.keys(players).forEach(playerId => { // Iterate through all players to update their scores/elimination status
+                if (!players[playerId].eliminated) {
+                    const scoreChange = (playerId === closestPlayer) ? 1 : -1;
+                    const newScore = players[playerId].score + scoreChange;
+                    updates[`players/${playerId}/score`] = newScore;
+                    
+                    // Check for elimination
+                    if (newScore <= gameState.gameData.settings.eliminationThreshold) {
+                        updates[`players/${playerId}/eliminated`] = true;
+                    }
+                }
+            });
+            
+            // Store results
+            updates.results = {
+                average: average,
+                target: target,
+                winner: closestPlayer,
+                submissions: submissions // Store all submissions, even from eliminated players for historical view
+            };
+            
+            updates.submissions = {}; // Clear submissions for next round
+            updates.roundStartTime = null; // Clear timer for results view
+
+            // After calculating scores and applying eliminations, check if only one player remains
+            const playersAfterRound = { ...players }; // Create a copy to apply updates locally for this check
+            for (const playerId in updates) {
+                if (playerId.startsWith('players/') && playerId.endsWith('/score')) {
+                    const id = playerId.split('/')[1];
+                    playersAfterRound[id].score = updates[playerId];
+                }
+                if (playerId.startsWith('players/') && playerId.endsWith('/eliminated')) {
+                    const id = playerId.split('/')[1];
+                    playersAfterRound[id].eliminated = updates[playerId];
+                }
+            }
+            const remainingPlayers = Object.values(playersAfterRound).filter(p => !p.eliminated);
+
+            if (remainingPlayers.length <= 1) {
+                updates.gameStatus = 'game_over'; // Set to game_over if only one player left
+            } else {
+                updates.gameStatus = 'results'; // Otherwise, set to results
+            }
+
+            database.ref('rooms/' + gameState.roomCode).update(updates);
+            playSound('roundEnd');
+        }
+
+        function showRoundResults(results, players) {
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('numberInputSection').classList.add('hidden');
+            
+            const resultsContent = document.getElementById('resultsContent');
+            
+            if (results.message) { // Handle case with no submissions
+                resultsContent.innerHTML = `
+                    <div class="text-center text-gray-700 text-lg font-semibold mb-4">
+                        ${results.message}
+                    </div>
+                    ${gameState.isHost && gameState.gameData.gameStatus !== 'game_over' ? `
+                        <button id="nextRoundBtn" class="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                            <i class="fas fa-arrow-right mr-2"></i>Next Round
+                        </button>
+                    ` : ''}
+                `;
+            } else {
+                resultsContent.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-blue-600">${results.average.toFixed(1)}</div>
+                            <div class="text-sm text-gray-600">Average</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-purple-600">${results.target.toFixed(1)}</div>
+                            <div class="text-sm text-gray-600">Target (80%)</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-yellow-600">${players[results.winner].avatar} ${players[results.winner].name}</div>
+                            <div class="text-sm text-gray-600">Round Winner!</div>
+                        </div>
+                    </div>
+                    
+                    <h4 class="text-lg font-semibold mb-3 text-gray-700">Player Submissions & Scores</h4>
+                    <div class="space-y-2">
+                        ${Object.entries(players).map(([playerId, player]) => `
+                            <div class="flex items-center justify-between p-2 rounded-lg ${playerId === results.winner ? 'bg-yellow-50 ring-2 ring-yellow-400' : 'bg-gray-50'} ${player.eliminated ? 'elimination-effect' : ''}">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-sm">${player.avatar}</div>
+                                    <span class="font-medium text-gray-800">${player.name}</span>
+                                </div>
+                                <div>
+                                    <span class="text-sm text-gray-700">Submitted: ${results.submissions[playerId] ? results.submissions[playerId].number : 'N/A'}</span>
+                                    <span class="ml-4 font-bold ${playerId === results.winner ? 'text-green-600' : 'text-red-600'}">Score: ${player.score}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${gameState.isHost && gameState.gameData.gameStatus !== 'game_over' ? `
+                        <button id="nextRoundBtn" class="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                            <i class="fas fa-arrow-right mr-2"></i>Next Round
+                        </button>
+                    ` : ''}
+                `;
+            }
+            
+            if (gameState.isHost && gameState.gameData.gameStatus !== 'game_over') {
+                document.getElementById('nextRoundBtn').addEventListener('click', startNextRound);
+            }
+        }
+
+        function showWinner(winnerPlayer) {
+            gameState.isInGame = false;
+            // Hide all main game sections
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('gameArea').classList.add('hidden');
+            document.getElementById('winnerSection').classList.add('hidden'); // This is the smaller, in-game winner section
+            document.getElementById('videoConferenceArea').classList.add('hidden'); // Hide video conference area
+
+            // Show the global, full-screen winner display
+            document.getElementById('globalWinnerDisplay').style.display = 'flex'; // Explicitly set display to flex
+            updateGlobalWinnerDisplay(winnerPlayer); // Update the content of the global display
+
+            playSound('gameOver'); // Play winning sound
+            clearInterval(timerInterval); // Stop game timer
+            stopLocalVideo(); // Stop local video when game is over
+        }
+
+        function startNextRound() {
+            if (!gameState.isHost) return;
+            
+            // Check if only one player remains (game over)
+            const alivePlayers = Object.values(gameState.gameData.players).filter(p => !p.eliminated);
+            if (alivePlayers.length <= 1) {
+                database.ref('rooms/' + gameState.roomCode).update({ gameStatus: 'game_over' });
+                return; // Game is over, don't start new round
+            }
+
+            database.ref('rooms/' + gameState.roomCode).update({
+                gameStatus: 'playing', // Set status back to playing
+                currentRound: gameState.gameData.currentRound + 1,
+                roundStartTime: Date.now(),
+                submissions: {},
+                results: {} // Clear previous results
+            }).then(() => {
+                // UI updates for non-host players are handled by handleRoomUpdate
+                // For the host, ensure button state resets correctly.
+                document.getElementById('numberInputSection').classList.remove('hidden');
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('submitNumberBtn').disabled = false;
+                document.getElementById('submitNumberBtn').textContent = 'Submit';
+                document.getElementById('submitNumberBtn').classList.remove('bg-green-600');
+                document.getElementById('numberSlider').value = 50; // Reset slider
+                document.getElementById('numberDisplay').textContent = 50;
+                playSound('roundStart');
+            });
+        }
+
+        function returnToLobby() {
+            gameState.isInGame = false;
+            document.getElementById('gameArea').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+            document.getElementById('winnerSection').classList.add('hidden');
+            document.getElementById('gameRulesModal').classList.add('hidden'); // Hide rules if returning to lobby
+            document.getElementById('globalWinnerDisplay').style.display = 'none'; // Explicitly hide global winner display
+            document.getElementById('videoConferenceArea').classList.remove('hidden'); // Show video conference area
+            
+            // Remove listener to avoid multiple updates if rejoining
+            if (gameState.currentRoom) {
+                gameState.currentRoom.off('value', handleRoomUpdate);
+            }
+            clearInterval(timerInterval); // Stop any active timer
+            
+            // Reset game data
+            gameState.gameData = null;
+            if (gameState.isHost) {
+                database.ref('rooms/' + gameState.roomCode).update({
+                    gameStatus: 'lobby',
+                    currentRound: 0,
+                    roundStartTime: null,
+                    submissions: {},
+                    results: {}
+                }).then(() => {
+                    // Reset player scores and eliminations for new game (host only)
+                    const playersRef = database.ref('rooms/' + gameState.roomCode + '/players');
+                    playersRef.once('value').then(snapshot => {
+                        const updates = {};
+                        snapshot.forEach(childSnapshot => {
+                            updates[childSnapshot.key + '/score'] = 0;
+                            updates[childSnapshot.key + '/eliminated'] = false;
+                        });
+                        playersRef.update(updates);
+                    });
+                     // Re-attach listener after changes in lobby
+                    if (gameState.roomCode) {
+                        gameState.currentRoom = database.ref('rooms/' + gameState.roomCode);
+                        gameState.currentRoom.on('value', handleRoomUpdate);
+                    }
+                });
+            } else {
+                 // Non-host players just stop listening and go to main menu if host resets the room
+                 // or if the room is deleted.
+                 returnToMainMenu();
+            }
+        }
+
+        function returnToMainMenu() {
+            if (gameState.currentRoom) {
+                gameState.currentRoom.off('value', handleRoomUpdate);
+            }
+            clearInterval(timerInterval); // Clear any active timer
+
+            // If host, delete the room
+            if (gameState.isHost && gameState.roomCode) {
+                database.ref('rooms/' + gameState.roomCode).remove()
+                    .then(() => console.log("Room deleted by host."))
+                    .catch(error => console.error("Error deleting room:", error));
+            }
+            gameState.roomCode = '';
+            gameState.isHost = false;
+            gameState.isInGame = false;
+            gameState.gameData = null;
+            document.getElementById('usernameInput').value = '';
+            document.getElementById('roomCodeInput').value = '';
+            showMainMenu();
+            document.getElementById('adminControls').classList.add('hidden');
+            document.getElementById('leftDashboard').classList.add('hidden'); // Hide dashboard
+            document.getElementById('globalWinnerDisplay').style.display = 'none'; // Explicitly hide global winner display
+            document.getElementById('videoConferenceArea').classList.add('hidden'); // Hide video conference area
+            stopLocalVideo(); // Stop local video when returning to main menu
+        }
+
+        function copyRoomCode() {
+            const roomCode = document.getElementById('displayRoomCode').textContent;
+            // Use document.execCommand('copy') for clipboard operations in iframes
+            const tempInput = document.createElement('input');
+            tempInput.value = roomCode;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showAlert('Room code copied to clipboard!', 'Copied!');
+        }
+
+        function createConfetti() {
+            const confettiColors = ['#f59e0b', '#ef4444', '#84cc16', '#3b82f6', '#ec4899', '#a855f7'];
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.animationDuration = Math.random() * 2 + 3 + 's';
+                confetti.style.backgroundColor = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+                document.body.appendChild(confetti);
+                
+                // Remove confetti after animation to prevent DOM bloat
+                confetti.addEventListener('animationend', () => {
+                    confetti.remove();
+                });
+            }
+        }
+
+        // Settings functionality (toggle for now, could expand)
+        function toggleSettings() {
+            showAlert('Settings functionality will be implemented here!', 'Settings');
+        }
+
+        // --- Video Conferencing Logic (Placeholder/Local Stream) ---
+        async function startLocalVideo() {
+            const localVideo = document.getElementById('localVideo');
+            const startVideoBtn = document.getElementById('startVideoBtn');
+            const toggleMicBtn = document.getElementById('toggleMicBtn');
+            const toggleCamBtn = document.getElementById('toggleCamBtn');
+
+            if (gameState.localStream) {
+                // If video is already running, stop it
+                stopLocalVideo();
+                startVideoBtn.innerHTML = '<i class="fas fa-play"></i> Start Video';
+                toggleMicBtn.classList.remove('active', 'inactive');
+                toggleCamBtn.classList.remove('active', 'inactive');
+                return;
+            }
+
+            try {
+                // Request access to camera and microphone
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                gameState.localStream = stream;
+                localVideo.srcObject = stream;
+                localVideo.play();
+
+                // Update button states
+                startVideoBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Video';
+                toggleMicBtn.classList.add('active');
+                toggleCamBtn.classList.add('active');
+                gameState.isMicOn = true;
+                gameState.isCamOn = true;
+
+                // Listen for track ending (e.g., user revokes permission, device disconnected)
+                stream.getTracks().forEach(track => {
+                    track.onended = () => {
+                        stopLocalVideo();
+                        startVideoBtn.innerHTML = '<i class="fas fa-play"></i> Start Video';
+                        toggleMicBtn.classList.remove('active', 'inactive');
+                        toggleCamBtn.classList.remove('active', 'inactive');
+                        showAlert('Your video/audio device was disconnected or permission revoked.', 'Device Disconnected');
+                    };
+                });
+
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+                showAlert('Could not access camera or microphone. Please check permissions and try again.', 'Media Access Error');
+                startVideoBtn.innerHTML = '<i class="fas fa-play"></i> Start Video';
+            }
+        }
+
+        function stopLocalVideo() {
+            if (gameState.localStream) {
+                gameState.localStream.getTracks().forEach(track => track.stop());
+                gameState.localStream = null;
+                document.getElementById('localVideo').srcObject = null;
+            }
+        }
+
+        function toggleMic() {
+            const toggleMicBtn = document.getElementById('toggleMicBtn');
+            if (gameState.localStream) {
+                const audioTracks = gameState.localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    gameState.isMicOn = !gameState.isMicOn;
+                    audioTracks[0].enabled = gameState.isMicOn;
+                    toggleMicBtn.classList.toggle('active', gameState.isMicOn);
+                    toggleMicBtn.classList.toggle('inactive', !gameState.isMicOn);
+                    toggleMicBtn.innerHTML = gameState.isMicOn ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+                }
+            } else {
+                showAlert('Start video first to toggle microphone.', 'No Video Stream');
+            }
+        }
+
+        function toggleCam() {
+            const toggleCamBtn = document.getElementById('toggleCamBtn');
+            if (gameState.localStream) {
+                const videoTracks = gameState.localStream.getVideoTracks();
+                if (videoTracks.length > 0) {
+                    gameState.isCamOn = !gameState.isCamOn;
+                    videoTracks[0].enabled = gameState.isCamOn;
+                    toggleCamBtn.classList.toggle('active', gameState.isCamOn);
+                    toggleCamBtn.classList.toggle('inactive', !gameState.isCamOn);
+                    toggleCamBtn.innerHTML = gameState.isCamOn ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+                }
+            } else {
+                showAlert('Start video first to toggle camera.', 'No Video Stream');
+            }
+        }
+
+    </script>
+</body>
+</html>
